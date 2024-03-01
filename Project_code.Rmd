@@ -1,0 +1,223 @@
+---
+title: "IST719_Final"
+author: "Brandon Liunoras"
+date: "2023-08-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading in File Data ##
+
+```{r}
+my.dir <- "D:\\IST_719\\Project\\"
+coffee <- read.csv(file=paste0(my.dir, "simplified_coffee.csv")
+                  , header = TRUE
+                  , stringsAsFactors = FALSE
+                  )
+```
+
+```{r}
+library(lubridate)
+library(RColorBrewer)
+library(wordcloud2)
+library(tm)
+library(tidyr)
+library(tidyverse)
+library(ggplot2)
+library(rnaturalearth)
+library(rnaturalearthdata)
+```
+
+```{r}
+coffee$review_date <- mdy(coffee$review_date)
+```
+
+```{r}
+origin_count <- table(coffee$origin)
+origin_count <- as.data.frame(origin_count)
+colnames(origin_count) <- c("origin", "count")
+top_origin <- origin_count[order(origin_count$count, decreasing = T),]
+top_origin <- top_origin[top_origin$count > 90,]
+
+```
+
+```{r}
+roaster_loc_count <- table(coffee$loc_country)
+roaster_loc_count <- as.data.frame(roaster_loc_count)
+colnames(roaster_loc_count) <- c("roaster_country", "count")
+top_loc_roaster <- roaster_loc_count[order(roaster_loc_count$count, decreasing = T), ]
+top_loc_roaster <- top_loc_roaster[top_loc_roaster$count > 8,]
+```
+
+
+```{r}
+num.colors <- 5
+FUN <- colorRampPalette(c("#F23262", "#FF7834", "#FFD034", "#94B700", "#BF3E00"))
+my.cols <- FUN(num.colors)
+
+barplot(top_origin$count
+        , main = "Top 5 Coffee Producing Countries"
+        , xlab  = "Country of Origin"
+        , ylab = "Number of Beans"
+        , ylim = c(0,500)
+        , names.arg = top_origin$origin
+        , col = my.cols)
+```
+
+```{r}
+roaster_count <- table(coffee$roaster)
+roaster_count <- as.data.frame(roaster_count)
+colnames(roaster_count) <- c("roaster", "count")
+top_roaster <- roaster_count[roaster_count$count > 27,]
+top_roaster <- top_roaster[order(top_roaster$count, decreasing = T),]
+
+roaster_vec <- c("JBC", "Kakalove", "Paradise", "Dragonfly", "Bird Rock")
+top_roaster_new <- data.frame(roaster_vec, top_roaster$count)
+colnames(top_roaster_new) <- c("roaster", "count")
+
+num.colors <- 5
+FUN <- colorRampPalette(c("#873D00", "#FFC373"))
+my.cols2 <- FUN(num.colors)
+barplot(top_roaster_new$count
+        , main = "Top 5 Roasters"
+        , xlab  = "Roaster"
+        , ylab = "Number of Beans Produced"
+        , ylim = c(0,100)
+        , names.arg = top_roaster_new$roaster
+        , col = my.cols2)
+```
+
+```{r}
+new_coffee <- coffee[coffee$origin %in% c("Ethiopia", "Colombia", "Kenya", "Hawai'I", "Guatemala"), ]
+new_coffee <- new_coffee[new_coffee$price_100g < 40,]
+
+num.colors <- 5
+FUN <- colorRampPalette(c("#F23262", "#FF7834", "#FFD034", "#94B700", "#BF3E00"))
+my.cols <- FUN(num.colors)
+
+new_coffee$origin <- factor(new_coffee$origin , levels=c("Ethiopia", "Colombia", "Kenya", "Hawai'I", "Guatemala"))
+
+boxplot(price_100g~origin
+        , data = new_coffee
+        , main = "Prices of Coffee by Origin"
+        , xlab = "Origin"
+        , ylab = "USD per 100 grams of Coffee"
+        , col = my.cols)
+```
+
+```{r}
+col.vec <- rep("black", nrow(coffee))
+col.vec[coffee$origin == "Ethiopia"] <- rgb(242,50,98, maxColorValue = 255)
+col.vec[coffee$origin == "Colombia"] <- rgb(255,120,52, maxColorValue = 255)
+col.vec[coffee$origin == "Kenya"] <- rgb(255,208,52, maxColorValue = 255)
+col.vec[coffee$origin == "Hawai'I"] <- rgb(148,183,0, maxColorValue = 255)
+col.vec[coffee$origin == "Guatemala"] <- rgb(191,62,0, maxColorValue = 255)
+```
+
+```{r}
+plot(rating~price_100g
+     , data = coffee
+     , main = "Rating vs Coffee Price per 100g"
+     , xlab = "USD Price per 100 grams of Coffee"
+     , ylab = "Rating"
+     , ylim = c(84,98)
+     , cex = .6
+     , pch = 16
+     , col = col.vec
+     )
+legend(x = "bottomright", 
+       legend = c("Ehtiopia", "Colombia", "Kenya", "Hawai'I", "Guatemala", "Other") 
+       , fill = c("#F23262", "#FF7834", "#FFD034", "#94B700", "#BF3E00", "black")
+       )
+```
+
+
+
+
+
+```{r}
+ethiopia_review <- coffee[coffee$origin == "Ethiopia",]
+jbc_review <- coffee[coffee$roaster == "JBC Coffee Roasters",]
+```
+
+```{r}
+#Create a vector containing only the text
+text <- ethiopia_review$review
+# Create a corpus  
+docs <- Corpus(VectorSource(text))
+
+docs <- docs %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords("english"))
+
+dtm <- TermDocumentMatrix(docs) 
+matrix <- as.matrix(dtm) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+df <- data.frame(word = names(words),freq=words)
+
+set.seed(1234) # for reproducibility 
+
+par(mar = c(1,1,1,1))
+
+wordcloud(words = df$word, freq = df$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35,            colors=brewer.pal(8, "Dark2"))
+```
+
+```{r}
+#Create a vector containing only the text
+text <- jbc_review$review
+# Create a corpus  
+docs <- Corpus(VectorSource(text))
+
+docs <- docs %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords("english"))
+
+dtm <- TermDocumentMatrix(docs) 
+matrix <- as.matrix(dtm) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+df <- data.frame(word = names(words),freq=words)
+
+set.seed(1234) # for reproducibility 
+wordcloud(words = df$word, freq = df$freq, min.freq = 1,           max.words=200, random.order=FALSE, rot.per=0.35,            colors=brewer.pal(8, "Dark2"))
+```
+
+
+```{r}
+test <- coffee[coffee$origin == "Ethiopia" & coffee$review_date == "2022-10-01",]
+```
+
+```{r}
+new_coffee$roast <- factor(new_coffee$roast)
+
+levels(new_coffee$roast) <- c("Light", "Medium-Light", "Medium", "Medium-Dark")
+
+test_table <- table(new_coffee$origin, new_coffee$roast)
+
+barplot(test_table
+        , main = "Coffee Bean Count by Origin and Roast"
+        , xlab = "Roast Type"
+        , ylab = "Coffee Bean Count"
+        , beside = T
+        , col = my.cols
+        , labs.args = )
+# legend(x = "topleft", 
+       # legend = c("Colombia", "Ethiopia", "Guatemala", "Hawai'I", "Kenya") 
+       # , fill = c("#FF7834", "#F23262", "#BF3E00", "#94B700",  "#FFD034" )
+       # )
+```
+
+```{r}
+new_coffee <- coffee[coffee$origin %in% c("Ethiopia", "Colombia", "Kenya", "Hawai'I", "Guatemala"), ]
+
+
+```
+
